@@ -760,6 +760,7 @@ static int lm75_detect(struct i2c_client *new_client,
 	int i;
 	int conf, hyst, os;
 	bool is_lm75a = 0;
+	bool is_lm75b = 0;
 
 	if (!i2c_check_functionality(adapter, I2C_FUNC_SMBUS_BYTE_DATA |
 				     I2C_FUNC_SMBUS_WORD_DATA))
@@ -780,8 +781,12 @@ static int lm75_detect(struct i2c_client *new_client,
 	 * register 7, and unused registers return 0xff rather than the
 	 * last read value.
 	 *
+	 * The National Semiconductor LM75B is very similar as the
+	 * LM75A, but it has no ID byte register 7, and unused registers 
+	 * return 0xff rather than the last read value like LM75A.
+	 *
 	 * Note that this function only detects the original National
-	 * Semiconductor LM75 and the LM75A. Clones from other vendors
+	 * Semiconductor LM75 and the LM75A/B. Clones from other vendors
 	 * aren't detected, on purpose, because they are typically never
 	 * found on PC hardware. They are found on embedded designs where
 	 * they can be instantiated explicitly so detection is not needed.
@@ -804,6 +809,13 @@ static int lm75_detect(struct i2c_client *new_client,
 		 || i2c_smbus_read_byte_data(new_client, 6) != 0xff)
 			return -ENODEV;
 		is_lm75a = 1;
+		hyst = i2c_smbus_read_byte_data(new_client, 2);
+		os = i2c_smbus_read_byte_data(new_client, 3);
+	} else if (i2c_smbus_read_byte_data(new_client, 4) == 0xff
+		 && i2c_smbus_read_byte_data(new_client, 5) == 0xff
+		 && i2c_smbus_read_byte_data(new_client, 6) == 0xff) {
+		/* LM75B detection */
+		is_lm75b = 1;
 		hyst = i2c_smbus_read_byte_data(new_client, 2);
 		os = i2c_smbus_read_byte_data(new_client, 3);
 	} else { /* Traditional style LM75 detection */
@@ -839,7 +851,8 @@ static int lm75_detect(struct i2c_client *new_client,
 			return -ENODEV;
 	}
 
-	strlcpy(info->type, is_lm75a ? "lm75a" : "lm75", I2C_NAME_SIZE);
+	strlcpy(info->type, is_lm75a ? 
+		"lm75a" : (is_lm75b ? "lm75b" : "lm75"), I2C_NAME_SIZE);
 
 	return 0;
 }
